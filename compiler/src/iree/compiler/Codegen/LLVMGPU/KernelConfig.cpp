@@ -43,7 +43,7 @@ struct TileWorkgroupSizePair {
 };
 
 // Software pipeline depths
-constexpr unsigned softwarePipelineDepthTensorCore = 4;
+constexpr unsigned softwarePipelineDepthTensorCore = 3;
 // Simt codegen does not do software pipelining.
 constexpr unsigned softwarePipelineDepthSimt = 0;
 }  // namespace
@@ -73,7 +73,7 @@ static void getTensorCoreConfig(
   if (isFp16) {
     tileSizes.push_back(TileWorkgroupSizePair({{32, 32, 32}, {64, 2, 1}}));
   } else {
-    tileSizes.push_back(TileWorkgroupSizePair({{32, 32, 16}, {64, 2, 1}}));
+    tileSizes.push_back(TileWorkgroupSizePair({{128, 128, 32}, {64, 4, 1}}));
   }
 }
 
