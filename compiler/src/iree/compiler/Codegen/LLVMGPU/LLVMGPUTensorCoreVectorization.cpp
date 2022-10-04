@@ -155,12 +155,12 @@ static Optional<SmallVector<int64_t, 4>> getWmmaNativeVectorSize(
 static Optional<SmallVector<int64_t, 4>> getMmaNativeVectorSize(
     Operation *op) {
   
-  // Shape of native Tensor Core GPU mma.sync instruction
+  // Shape of native Tensor Core GPU mma.sync operations.
   int64_t mmaShapeM = 16;
   int64_t mmaShapeN = 8;
   int64_t mmaShapeK;
 
-  // Shape the matrix-multiply-accumulate operations.
+  // Shape the mma.sync warp-level operation.
   if (auto contract = dyn_cast<vector::ContractionOp>(op)) {
     auto sourceType = contract.getLhsType().getElementType();
 
@@ -196,7 +196,7 @@ static Optional<SmallVector<int64_t, 4>> getMmaNativeVectorSize(
     auto resultVectorType = readOp.getVector().getType().cast<VectorType>();
     auto resultElementType = resultVectorType.getElementType();
 
-    // F16 reads/writes
+    // Loading F16 values from Shared Memory to Registers.
     if (resultElementType.isF16() || resultElementType.isBF16()) {
       // MmaSyncOp input operands: matrixA and matrixB. 
       // LDSMx1, x2, x4:
@@ -206,17 +206,17 @@ static Optional<SmallVector<int64_t, 4>> getMmaNativeVectorSize(
       // IREE uses the largest tiled load, i.e., LDSMx4. 
 
       // MmaSyncOp source operand: matrixC.
-      // matrixC is also read/written in tiled block of 16x16. In the pass OptimizeVectorTransfer 
-      // matrixC reads will lifted above the mainloop and writes will moved below the mainloop. 
-      // Thus, mma.sync read/write accumulator inplace. 
+      // matrixC is also read/written in tiled block of 16x16. In the pass 
+      // OptimizeVectorTransfer, matrixC reads are moved above the mainloop 
+      // and writes are moved below the mainloop. Thus, mma.sync read/write 
+      // accumulator inplace. 
 
       SmallVector<int64_t, 4> readShape;
       readShape.append({16, 16});
       return readShape;
     }
     
-
-    // F32 reads/writes
+    // Loading F32 values from Shared Memory to Registers.
     if (resultElementType.isF32()) {
     
     }
