@@ -13,6 +13,7 @@
 #include "iree/compiler/Dialect/HAL/IR/HALOps.h"
 #include "iree/compiler/Utils/CustomKernelsTargetInfo.h"
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassOptions.h"
@@ -97,10 +98,6 @@ createRemoveSingleIterationLoopPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createConvertToDestinationPassingStylePass();
 
-/// Creates a pass to vectorize a very specific form of linalg.conv ops.
-std::unique_ptr<OperationPass<func::FuncOp>>
-createLinalgToVectorVectorizeConvPass();
-
 /// Creates a pass to vectorize a very specific form of tensor.pad ops with
 /// control flows.
 std::unique_ptr<OperationPass<func::FuncOp>> createVectorizePadPass();
@@ -116,6 +113,10 @@ createTestPartitionableLoopsInterfacePass();
 /// Pass to tile and distribute to workgroups.
 std::unique_ptr<OperationPass<IREE::HAL::ExecutableVariantOp>>
 createTileAndDistributeToWorkgroupsPass();
+
+/// Pass to specialize workgroup distribution loops
+std::unique_ptr<OperationPass<func::FuncOp>>
+createWorkgroupSpecializationPass();
 
 /// Pass to propagate type to avoid generating load/stores of illegal types.
 std::unique_ptr<OperationPass<func::FuncOp>> createTypePropagationPass();
@@ -315,6 +316,17 @@ void addCPUAArchDoubleTilingExpertPassPipeline(OpPassManager &passManager);
 /// module within the IREE::HAL::ExecutableOp.
 void buildLLVMCPUCodegenPassPipeline(OpPassManager &passManager);
 
+//----------------------------------------------------------------------------//
+// LLVMCPU Linking Passes and Pipelines
+//----------------------------------------------------------------------------//
+
+/// Links LLVMCPU HAL executables within the top-level program module.
+std::unique_ptr<OperationPass<mlir::ModuleOp>>
+createLLVMCPULinkExecutablesPass();
+
+/// Populates passes needed to link HAL executables across LLVMCPU targets.
+void buildLLVMCPULinkingPassPipeline(OpPassManager &passManager);
+
 //------------------------------------------------------------------------------
 // LLVMGPU
 //------------------------------------------------------------------------------
@@ -503,6 +515,25 @@ void buildSPIRVCodegenPassPipeline(OpPassManager &pm, bool enableFastMath);
 // Lowers high level library calls from named ops and generics. This operates
 // at the bufferized linalg level.
 std::unique_ptr<Pass> createVMVXLowerLinalgMicrokernelsPass();
+
+//----------------------------------------------------------------------------//
+// VMVX Linking Passes and Pipelines
+//----------------------------------------------------------------------------//
+
+/// Links VMVX HAL executables within the top-level program module.
+std::unique_ptr<OperationPass<mlir::ModuleOp>> createVMVXLinkExecutablesPass();
+
+/// Populates passes needed to link HAL executables across VMVX targets.
+void buildVMVXLinkingPassPipeline(OpPassManager &passManager);
+
+//------------------------------------------------------------------------------
+// WGSL passes
+//------------------------------------------------------------------------------
+
+// Removes push constants by replacing hal.interface.constant.loads with
+// hal.interface.binding.subspan + flow.dispatch.tensor.load.
+std::unique_ptr<OperationPass<func::FuncOp>>
+createWGSLReplacePushConstantsPass();
 
 //------------------------------------------------------------------------------
 // Test passes

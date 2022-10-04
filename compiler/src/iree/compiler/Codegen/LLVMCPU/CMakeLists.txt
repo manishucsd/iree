@@ -22,6 +22,7 @@ iree_cc_library(
     "LLVMCPUAArch64VectorLowering.cpp"
     "LLVMCPUCheckIRBeforeLLVMConversion.cpp"
     "LLVMCPUEmitVectorizationRemarks.cpp"
+    "LLVMCPULinkExecutables.cpp"
     "LLVMCPULowerExecutableTarget.cpp"
     "LLVMCPUSynchronizeSymbolVisibility.cpp"
     "LLVMCPUUnfuseFMAOps.cpp"
@@ -37,9 +38,9 @@ iree_cc_library(
     LLVMSupport
     MLIRAffineToStandard
     MLIRAnalysis
-    MLIRArithmeticDialect
-    MLIRArithmeticToLLVM
-    MLIRArithmeticTransforms
+    MLIRArithDialect
+    MLIRArithToLLVM
+    MLIRArithTransforms
     MLIRArmNeon2dToIntr
     MLIRArmNeonDialect
     MLIRBufferizationDialect

@@ -37,9 +37,9 @@ iree_lit_test_suite(
     "transform_dialect_apply_pattern_op.mlir"
     "transpose_canonicalization.mlir"
     "type_propagation.mlir"
-    "vectorize_linalg_conv.mlir"
     "vectorize_tensor_pad.mlir"
     "warp_reduction.mlir"
+    "workgroup_specialization.mlir"
   TOOLS
     FileCheck
     iree-opt

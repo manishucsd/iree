@@ -15,17 +15,19 @@ iree_cc_library(
     Utils
   HDRS
     "GPUUtils.h"
+    "LinkingUtils.h"
     "MarkerUtils.h"
     "Utils.h"
   SRCS
     "GPUUtils.cpp"
+    "LinkingUtils.cpp"
     "MarkerUtils.cpp"
     "Utils.cpp"
   DEPS
     IREELinalgExtDialect
     LLVMSupport
     MLIRAffineDialect
-    MLIRArithmeticDialect
+    MLIRArithDialect
     MLIRGPUOps
     MLIRIR
     MLIRLinalgDialect

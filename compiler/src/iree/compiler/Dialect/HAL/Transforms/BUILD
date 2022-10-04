@@ -56,7 +56,7 @@ iree_compiler_cc_library(
         "//compiler/src/iree/compiler/Utils",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:AffineToStandard",
-        "@llvm-project//mlir:ArithmeticDialect",
+        "@llvm-project//mlir:ArithDialect",
         "@llvm-project//mlir:BufferizationDialect",
         "@llvm-project//mlir:ControlFlowDialect",
         "@llvm-project//mlir:FuncDialect",
@@ -65,6 +65,7 @@ iree_compiler_cc_library(
         "@llvm-project//mlir:SCFDialect",
         "@llvm-project//mlir:SCFToControlFlow",
         "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TensorDialect",
         "@llvm-project//mlir:Transforms",
     ],
 )
