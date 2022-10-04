@@ -36,7 +36,7 @@ iree_cc_library(
   DEPS
     LLVMSupport
     MLIRAffineToStandard
-    MLIRArithmeticDialect
+    MLIRArithDialect
     MLIRBufferizationDialect
     MLIRControlFlowDialect
     MLIRFuncDialect
@@ -45,6 +45,7 @@ iree_cc_library(
     MLIRSCFDialect
     MLIRSCFToControlFlow
     MLIRSupport
+    MLIRTensorDialect
     MLIRTransforms
     iree::compiler::Dialect::Flow::IR
     iree::compiler::Dialect::HAL::Analysis

@@ -17,7 +17,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
-#include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
+#include "mlir/Dialect/Arith/Transforms/Passes.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
@@ -103,9 +103,14 @@ static void addBufferizePasses(OpPassManager &passManager) {
                                       memcpyFn);
 }
 
-static void addTileAndDistributePasses(OpPassManager &pm) {
+static void addTileAndDistributePasses(
+    OpPassManager &pm, bool useFuseTensorPadWithConsumerPass = true) {
   pm.addPass(createTileAndDistributeToWorkgroupsPass());
   auto &nestedModulePM = pm.nest<ModuleOp>();
+  if (useFuseTensorPadWithConsumerPass) {
+    nestedModulePM.addNestedPass<func::FuncOp>(
+        createFuseTensorPadWithConsumerPass());
+  }
   nestedModulePM.addNestedPass<func::FuncOp>(
       createConvertToDestinationPassingStylePass());
   nestedModulePM.addNestedPass<func::FuncOp>(
@@ -157,11 +162,12 @@ LogicalResult verifyDoubleTilingExpertPassPipelineConfig(
            << loweringConfig.getTileSizes().size();
   }
 
-  auto interfaceOp = dyn_cast_or_null<PartitionableLoopsInterface>(op);
+  auto interfaceOp = dyn_cast_or_null<TilingInterface>(op);
   if (interfaceOp) {
     llvm::SmallDenseSet<unsigned> pLoopsSet;
-    for (auto iteratorType : llvm::enumerate(interfaceOp.getIteratorTypes())) {
-      if (iteratorType.value() == getParallelIteratorTypeName()) {
+    for (auto iteratorType :
+         llvm::enumerate(interfaceOp.getLoopIteratorTypes())) {
+      if (iteratorType.value() == utils::IteratorType::parallel) {
         pLoopsSet.insert(iteratorType.index());
       }
     }
@@ -309,7 +315,8 @@ void addCPUBufferOpsTileAndVectorizePipeline(OpPassManager &passManager) {
 }
 
 void addDoubleTilingPadExpertPassPipeline(OpPassManager &passManager) {
-  addTileAndDistributePasses(passManager);
+  addTileAndDistributePasses(passManager,
+                             /*useFuseTensorPadWithConsumerPass=*/false);
 
   OpPassManager &nestedModulePM = passManager.nest<ModuleOp>();
   {
@@ -401,7 +408,8 @@ void addDoubleTilingPadExpertPassPipeline(OpPassManager &passManager) {
 }
 
 void addVMVXDefaultPassPipeline(OpPassManager &passManager) {
-  addTileAndDistributePasses(passManager);
+  addTileAndDistributePasses(passManager,
+                             /*useFuseTensorPadWithConsumerPass=*/false);
 
   // Tensor-level micro-kernel optimizations.
   // Note that this must be done post-tiling because it changes the structure
@@ -439,6 +447,12 @@ void addMultiTilingExpertPassPipeline(OpPassManager &passManager,
       nestedModulePM.addNestedPass<func::FuncOp>(createLinalgFusePass(options));
     }
   }
+
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createFuseTensorPadWithConsumerPass());
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createConcretizePadResultShapePass());
+  nestedModulePM.addNestedPass<func::FuncOp>(createVectorizePadPass());
 
   {
     LinalgSingleTilingExpertPassOptions options;
@@ -495,6 +509,12 @@ void addConvTileAndDecomposeExpertPassPipeline(OpPassManager &passManager) {
     nestedModulePM.addNestedPass<func::FuncOp>(createCSEPass());
   }
 
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createFuseTensorPadWithConsumerPass());
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createConcretizePadResultShapePass());
+  nestedModulePM.addNestedPass<func::FuncOp>(createVectorizePadPass());
+
   // Add the sandbox single tiling expert to vectorize.
   // We can't do the vectorization in the tiling expert above due to an issue in
   // codegen strategy pipeline. Since we are moving to the transform dialect, we
@@ -509,11 +529,11 @@ void addConvTileAndDecomposeExpertPassPipeline(OpPassManager &passManager) {
     nestedModulePM.addNestedPass<func::FuncOp>(createCSEPass());
   }
 
-  addBufferizePasses(nestedModulePM);
   nestedModulePM.addNestedPass<func::FuncOp>(createCSEPass());
   nestedModulePM.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   nestedModulePM.addNestedPass<func::FuncOp>(
-      createOptimizeVectorTransferPass(/*flatten=*/true));
+      createOptimizeVectorTransferPass(/*flatten=*/false));
+  addBufferizePasses(nestedModulePM);
 
   // Run IREE specific passes before vector lowering expert.
   nestedModulePM.addNestedPass<func::FuncOp>(
@@ -547,6 +567,12 @@ void addCPUAArchDoubleTilingExpertPassPipeline(OpPassManager &passManager) {
         createLinalgSingleTilingExpertPass(options));
   }
 
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createFuseTensorPadWithConsumerPass());
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createConcretizePadResultShapePass());
+  nestedModulePM.addNestedPass<func::FuncOp>(createVectorizePadPass());
+
   {
     LinalgSingleTilingExpertPassOptions options;
     options.vectorize = true;
@@ -566,6 +592,11 @@ void addCPUDefaultPassPipeline(OpPassManager &passManager) {
   addTileAndDistributePasses(passManager);
   OpPassManager &nestedModulePM = passManager.nest<ModuleOp>();
   addBufferizePasses(nestedModulePM);
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createFuseTensorPadWithConsumerPass());
+  nestedModulePM.addNestedPass<func::FuncOp>(
+      createConcretizePadResultShapePass());
+  nestedModulePM.addNestedPass<func::FuncOp>(createVectorizePadPass());
 }
 
 void addTransformDialectInterpreterPasses(OpPassManager &passManager) {
@@ -616,8 +647,7 @@ static void addLowerToLLVMPasses(OpPassManager &passManager) {
   passManager.addNestedPass<func::FuncOp>(createCSEPass());
 
   // (HAL, IREE, Linalg, CF) -> LLVM
-  passManager.addNestedPass<func::FuncOp>(
-      arith::createArithmeticExpandOpsPass());
+  passManager.addNestedPass<func::FuncOp>(arith::createArithExpandOpsPass());
   passManager.addNestedPass<func::FuncOp>(memref::createExpandOpsPass());
   passManager.addPass(createConvertToLLVMPass());
   passManager.addPass(createReconcileUnrealizedCastsPass());
@@ -646,6 +676,12 @@ void buildLLVMCPUCodegenPassPipeline(OpPassManager &passManager) {
     passManager.printAsTextualPipeline(llvm::dbgs());
     llvm::dbgs() << "\n";
   });
+}
+
+// NOTE: this runs on the top-level program module containing all
+// hal.executable ops.
+void buildLLVMCPULinkingPassPipeline(OpPassManager &passManager) {
+  passManager.addPass(createLLVMCPULinkExecutablesPass());
 }
 
 }  // namespace iree_compiler

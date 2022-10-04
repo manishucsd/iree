@@ -10,6 +10,7 @@
 #include "iree/compiler/Codegen/Passes.h"
 #include "iree/compiler/Dialect/HAL/Target/TargetRegistry.h"
 #include "iree/compiler/Dialect/HAL/Target/WebGPU/SPIRVToWGSL.h"
+#include "iree/compiler/Dialect/HAL/Transforms/Passes.h"
 #include "iree/compiler/Utils/FlatbufferUtils.h"
 #include "iree/schemas/wgsl_executable_def_builder.h"
 #include "llvm/Support/CommandLine.h"
@@ -84,6 +85,13 @@ class WebGPUTargetBackend : public TargetBackend {
   }
 
   void buildTranslationPassPipeline(OpPassManager &passManager) override {
+    // WebGPU does not support push constants (yet?), so replace loads from
+    // push constants with loads from uniform buffers.
+    // The corresponding runtime code must perform similar emulation, based
+    // on the push constant count listed in the executable layout.
+    passManager.nest<ModuleOp>().nest<func::FuncOp>().addPass(
+        createWGSLReplacePushConstantsPass());
+
     // From WGSL spec, "Floating Point Evaluation"
     // (https://www.w3.org/TR/WGSL/#floating-point-evaluation):
     // - Implementations may assume that NaNs and infinities are not present at
@@ -96,8 +104,6 @@ class WebGPUTargetBackend : public TargetBackend {
     // Therefore, just let the SPIR-V CodeGen to avoid generating guards w.r.t.
     // NaN and infinity.
     buildSPIRVCodegenPassPipeline(passManager, /*enableFastMath=*/true);
-    // TODO(scotttodd): additional passes for WebGPU/WGSL
-    //                  (here or during serialization?)
   }
 
   LogicalResult serializeExecutable(const SerializationOptions &options,
@@ -108,7 +114,7 @@ class WebGPUTargetBackend : public TargetBackend {
     if (!llvm::hasSingleElement(spirvModuleOps)) {
       // TODO(#7824): Implement linking / shader module combining and relax this
       return variantOp.emitError()
-             << "should only contain exactly one spv.module op";
+             << "should only contain exactly one spirv.module op";
     }
     auto spvModuleOp = *spirvModuleOps.begin();
 
@@ -149,7 +155,7 @@ class WebGPUTargetBackend : public TargetBackend {
     if (failed(
             spirv::serialize(spvModuleOp, spvBinary, serializationOptions)) ||
         spvBinary.empty()) {
-      return variantOp.emitError() << "failed to serialize spv.module";
+      return variantOp.emitError() << "failed to serialize spirv.module";
     }
     if (!options.dumpIntermediatesPath.empty()) {
       dumpDataToPath<uint32_t>(options.dumpIntermediatesPath,

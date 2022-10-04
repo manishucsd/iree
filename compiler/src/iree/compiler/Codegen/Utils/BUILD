@@ -18,11 +18,13 @@ iree_compiler_cc_library(
     name = "Utils",
     srcs = [
         "GPUUtils.cpp",
+        "LinkingUtils.cpp",
         "MarkerUtils.cpp",
         "Utils.cpp",
     ],
     hdrs = [
         "GPUUtils.h",
+        "LinkingUtils.h",
         "MarkerUtils.h",
         "Utils.h",
     ],
@@ -34,7 +36,7 @@ iree_compiler_cc_library(
         "//llvm-external-projects/iree-dialects:IREELinalgExtDialect",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:AffineDialect",
-        "@llvm-project//mlir:ArithmeticDialect",
+        "@llvm-project//mlir:ArithDialect",
         "@llvm-project//mlir:GPUDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:LinalgDialect",
