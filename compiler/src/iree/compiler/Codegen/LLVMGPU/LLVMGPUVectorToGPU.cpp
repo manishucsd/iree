@@ -14,6 +14,7 @@
 #include "mlir/Dialect/NVGPU/IR/NVGPUDialect.h"
 #include "mlir/Dialect/NVGPU/Transforms/Transforms.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include <iostream>
 
 namespace mlir {
 namespace iree_compiler {
@@ -27,6 +28,8 @@ static void createAsyncGroups(func::FuncOp funcOp) {
   llvm::SmallSetVector<vector::TransferWriteOp, 16> copyToSharedMem;
   // Look for all the copy that can be converted to async copy ops.
   funcOp.walk([&](vector::TransferWriteOp writeOp) {
+    //std::cout << ">> funcOp walk on writeOp: " << std::endl;
+    //writeOp->dump();
     if (!writeOp.getPermutationMap().isMinorIdentity() ||
         writeOp.getVectorType().getRank() != 1 || !writeOp.isDimInBounds(0) ||
         writeOp.getShapedType().cast<MemRefType>().getMemorySpaceAsInt() !=
@@ -41,6 +44,8 @@ static void createAsyncGroups(func::FuncOp funcOp) {
           (read.getVectorType().getElementType().isF16() &&
            read.getVectorType().getNumElements() <= 8)))
       return WalkResult::advance();
+    //std::cout << "++ writeOp added copyToSharedMem: " << std::endl;
+    //writeOp->dump();
     copyToSharedMem.insert(writeOp);
     return WalkResult::advance();
   });
@@ -271,6 +276,13 @@ struct LLVMGPUVectorToGPUPass
       }
     } else {
       convertVectorToMMAOps(funcOp);
+    }
+
+    RewritePatternSet patterns(funcOp.getContext());
+    mlir::vector::populateCastAwayVectorLeadingOneDimPatterns(patterns);
+    if (failed(applyPatternsAndFoldGreedily(funcOp,
+                                              std::move(patterns)))) {
+        return signalPassFailure();
     }
     createAsyncGroups(funcOp);
 

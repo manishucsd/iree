@@ -17,7 +17,7 @@
 #include "mlir/Transforms/Passes.h"
 #include <iostream>
 
-#define DEBUG_LEVEL 0
+#define DEBUG_LEVEL_LLVMGPU_TensorCoreVectorization 0
 
 using mlir::iree_compiler::IREE::LinalgExt::LinalgVectorizationPattern;
 using mlir::iree_compiler::IREE::LinalgExt::VectorizationPatterns;
@@ -255,7 +255,7 @@ struct LLVMGPUTensorCoreVectorizationPass
     MLIRContext *context = &getContext();
     {
 
-#if DEBUG_LEVEL
+#if DEBUG_LEVEL_LLVMGPU_TensorCoreVectorization
       std::cout << "// ---- Before  LLVMGPUTensorCoreVectorization" << std::endl;
       funcOp->dump();
       std::endl;
@@ -269,7 +269,7 @@ struct LLVMGPUTensorCoreVectorizationPass
         return signalPassFailure();
       }
 
-#if DEBUG_LEVEL
+#if DEBUG_LEVEL_LLVMGPU_TensorCoreVectorization
       std::cout << "// ---- LLVMGPUTensorCoreVectorization (Vectorize)" << std::endl;
       funcOp->dump();
       std::endl;
@@ -286,12 +286,12 @@ struct LLVMGPUTensorCoreVectorizationPass
         return signalPassFailure();
       }
 
-#if DEBUG_LEVEL
+#if DEBUG_LEVEL_LLVMGPU_TensorCoreVectorization
       std::cout << "// ---- LLVMGPUTensorCoreVectorization (Fold consumer add ops)" << std::endl;
       funcOp->dump();
       std::endl;
 #endif
-      // Step 3. Prepare vector operations to be lowered to GPU ops.
+      // Step 3. Prepare vector ops to be lowered to GPU ops.
       RewritePatternSet vectorContractPatterns(funcOp.getContext());
       mlir::vector::populateCastAwayVectorLeadingOneDimPatterns(vectorContractPatterns);
       mlir::populatePrepareVectorToMMAPatterns(vectorContractPatterns, llvmgpuUseMMASync);
@@ -299,6 +299,12 @@ struct LLVMGPUTensorCoreVectorizationPass
                                               std::move(vectorContractPatterns)))) {
         return signalPassFailure();
       }
+
+#if DEBUG_LEVEL_LLVMGPU_TensorCoreVectorization
+      std::cout << "// ---- After LLVMGPUTensorCoreVectorization " << std::endl;
+      funcOp->dump();
+      std::endl;
+#endif
 
       // Step 4. Break and unroll warp tile size to native math and load sizes.
       RewritePatternSet vectorUnrollPatterns(context);
@@ -308,7 +314,7 @@ struct LLVMGPUTensorCoreVectorizationPass
         return signalPassFailure();
       }
 
-#if DEBUG_LEVEL
+#if DEBUG_LEVEL_LLVMGPU_TensorCoreVectorization
       std::cout << "// ---- After LLVMGPUTensorCoreVectorization " << std::endl;
       funcOp->dump();
       std::endl;
