@@ -153,6 +153,28 @@ static Optional<SmallVector<int64_t, 4>> getWmmaNativeVectorSize(
   return llvm::None;
 }
 
+static int getVectorContractOpOperandId(
+  vector::ContractionOp contractOp, Operation *op) {
+  if (contractOp.getLhs() == op->getResult(0)) return 0;
+  if (contractOp.getRhs() == op->getResult(0)) return 1;
+  if (contractOp.getAcc() == op->getResult(0)) return 2;
+  return -1;
+}
+
+// Returns operand id for vector::ContractOp where the vector::TransferReadOp
+// is consumed. 
+static int getVectorContractOpOperandIdForVectorReadOp(Operation *op) {
+  vector::ContractionOp contractOp;
+
+  Operation *firstLevelUser = *((op->getUsers()).begin());
+  if (auto contractOp = dyn_cast<vector::ContractionOp>(firstLevelUser))
+      return getVectorContractOpOperandId(contractOp, op);
+  Operation *secondLevelUser = *((firstLevelUser->getUsers()).begin());
+  if (auto contractOp = dyn_cast<vector::ContractionOp>(secondLevelUser))
+      return getVectorContractOpOperandId(contractOp, firstLevelUser);
+  return -1;
+}
+
 // Helper function to return native size for MMA.SYNC-based operations.
 static Optional<SmallVector<int64_t, 4>> getMmaNativeVectorSize(
     Operation *op) {
@@ -198,23 +220,25 @@ static Optional<SmallVector<int64_t, 4>> getMmaNativeVectorSize(
     auto resultVectorType = readOp.getVector().getType().cast<VectorType>();
     auto resultElementType = resultVectorType.getElementType();
 
-    FailureOr<nvgpu::WarpMatrixInfo> warpMatrixInfo =
-        nvgpu::getWarpMatrixInfo(op);
-    if (failed(warpMatrixInfo))
+    int operandId = getVectorContractOpOperandIdForVectorReadOp(op);
+    if (operandId == -1) {
+      op->emitError() << "Cannot determine operandId this "
+        "vector::TransferReadOp is used as in the vector::TransferContractOp";
       return llvm::None;
-
+    }
+    
     // Loading F16 values from Shared Memory to Registers.
     if (resultElementType.isF16() || resultElementType.isBF16()) {
       // For matrixC.
-      if (warpMatrixInfo->operandRole == nvgpu::MatMulOperandRole::C) {
+      if (operandId == 2) {
         SmallVector<int64_t, 4> readShape;
         readShape.append({mmaShapeM, mmaShapeN});
+        // std::cout << "OperandC " << readShape[0] << "x" << readShape[1] << std::endl;
         return readShape;
       } 
 
       // For matrixA and matrixB.
-      if (warpMatrixInfo->operandRole == nvgpu::MatMulOperandRole::A ||
-          warpMatrixInfo->operandRole == nvgpu::MatMulOperandRole::B) {
+      if (operandId == 0 || operandId == 1) {
         // MmaSyncOp input operands: matrixA and matrixB. 
         // LDSMx1, x2, x4:
         // - LDSMx1 loads a 1 tile  of 8x8.
@@ -230,6 +254,7 @@ static Optional<SmallVector<int64_t, 4>> getMmaNativeVectorSize(
 
         SmallVector<int64_t, 4> readShape;
         readShape.append({16, 16});
+        // std::cout << "OperandA/B " << readShape[0] << "x" << readShape[1] << std::endl;
         return readShape;
       }
     }
@@ -272,7 +297,7 @@ struct LLVMGPUTensorCoreVectorizationPass
 #if DEBUG_LEVEL
       std::cout << "// ---- Before  LLVMGPUTensorCoreVectorization" << std::endl;
       funcOp->dump();
-      std::endl;
+      std::cout << std::endl;
 #endif
 
       // Step 1. Vectorize.
@@ -286,7 +311,7 @@ struct LLVMGPUTensorCoreVectorizationPass
 #if DEBUG_LEVEL
       std::cout << "// ---- LLVMGPUTensorCoreVectorization (Vectorize)" << std::endl;
       funcOp->dump();
-      std::endl;
+      std::cout << std::endl;
 #endif
 
       // Step 2. Fold consumer add ops into the contraction op itself.
@@ -301,9 +326,9 @@ struct LLVMGPUTensorCoreVectorizationPass
       }
 
 #if DEBUG_LEVEL
-      std::cout << "// ---- LLVMGPUTensorCoreVectorization (Fold consumer add ops)" << std::endl;
+      std::cout << "// ---- Step 3. LLVMGPUTensorCoreVectorization (Fold consumer add ops)" << std::endl;
       funcOp->dump();
-      std::endl;
+      std::cout << std::endl;
 #endif
       // Step 3. Prepare vector operations to be lowered to GPU ops.
       RewritePatternSet vectorContractPatterns(funcOp.getContext());
@@ -313,6 +338,12 @@ struct LLVMGPUTensorCoreVectorizationPass
                                               std::move(vectorContractPatterns)))) {
         return signalPassFailure();
       }
+
+#if DEBUG_LEVEL
+      std::cout << "// ---- Step 3.  LLVMGPUTensorCoreVectorization (Before Break and unroll)" << std::endl;
+      funcOp->dump();
+      std::cout << std::endl;
+#endif
 
       // Step 4. Break and unroll warp tile size to native math and load sizes.
       RewritePatternSet vectorUnrollPatterns(context);
@@ -325,7 +356,7 @@ struct LLVMGPUTensorCoreVectorizationPass
 #if DEBUG_LEVEL
       std::cout << "// ---- After LLVMGPUTensorCoreVectorization " << std::endl;
       funcOp->dump();
-      std::endl;
+      std::cout << std::endl;
 #endif
     }
   }
