@@ -29,6 +29,7 @@ iree_lit_test_suite(
             "null_values.mlir",
             "repeated_return.mlir",
             "scalars.mlir",
+            "vector-dot-expected.mlir"
         ],
         include = ["*.mlir"],
     ),
@@ -46,7 +47,7 @@ iree_lit_test_suite(
         "@llvm-project//lld",
         "@llvm-project//llvm:FileCheck",
         "@llvm-project//llvm:not",
-    ],
+    ]
 )
 
 iree_lit_test_suite(

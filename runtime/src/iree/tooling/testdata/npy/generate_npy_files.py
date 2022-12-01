@@ -47,3 +47,8 @@ with open('array_types.npy', 'wb') as f:
   np.save(f, np.array([-1.1, 1.1], dtype=np.float64))
   np.save(f, np.array([1 + 5j, 2 + 6j], dtype=np.complex64))
   np.save(f, np.array([1 + 5j, 2 + 6j], dtype=np.complex128))
+
+
+# generate vector_input for ops in vector-dot-expected.mlir
+with open('vector_input.npy', 'wb') as f:
+  np.save(f, np.array([1, 1, 1, 1], dtype=np.float32))

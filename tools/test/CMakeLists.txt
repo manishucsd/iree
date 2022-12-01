@@ -25,6 +25,7 @@ iree_lit_test_suite(
     "null_values.mlir"
     "repeated_return.mlir"
     "scalars.mlir"
+    "vector-dot-expected.mlir"
   TOOLS
     ${IREE_LLD_TARGET}
     FileCheck
