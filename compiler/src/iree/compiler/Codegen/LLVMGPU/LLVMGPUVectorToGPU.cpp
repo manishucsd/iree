@@ -156,9 +156,8 @@ struct LLVMGPUVectorToGPUPass
 
     RewritePatternSet patterns(funcOp.getContext());
     mlir::vector::populateCastAwayVectorLeadingOneDimPatterns(patterns);
-    if (failed(applyPatternsAndFoldGreedily(funcOp,
-                                              std::move(patterns)))) {
-        return signalPassFailure();
+    if (failed(applyPatternsAndFoldGreedily(funcOp, std::move(patterns)))) {
+      return signalPassFailure();
     }
 
     createAsyncGroups(funcOp);
